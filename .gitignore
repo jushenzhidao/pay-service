@@ -1,0 +1,23 @@
+# 数据库配置：含明文凭据，禁止入库。
+# 仓库只提交 config.sample.php 模板，部署时复制为 config.php 再填真实值。
+/config.php
+
+# 安装完成标记（本地状态，不应同步）
+/install/install.lock
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 工具本地状态（记忆/会话数据，不应同步）
+.workbuddy/
+
+# 日志与缓存
+*.log
+/runtime/
+/temp/

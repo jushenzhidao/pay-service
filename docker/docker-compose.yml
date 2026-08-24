@@ -1,0 +1,56 @@
+# compose 项目名：不指定时会取所在目录名 "docker"，容器/网络/卷前缀会很难辨认
+name: epay
+
+services:
+  web:
+    build:
+      # context 相对本文件所在目录（docker/）解析，故用 "."
+      context: .
+      dockerfile: Dockerfile
+    container_name: epay-web
+    ports:
+      - "8090:80"
+    volumes:
+      # 挂载项目源码到站点根目录（代码改动即时生效）
+      - ..:/var/www/html
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - epay-net
+
+  db:
+    # MariaDB 10.11：兼容 MySQL 5.7 协议，且原生支持 Apple Silicon (arm64)
+    image: mariadb:10.11
+    container_name: epay-db
+    ports:
+      - "3307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: epay123456
+      MARIADB_DATABASE: epay
+      MARIADB_USER: epay
+      MARIADB_PASSWORD: epay123456
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    volumes:
+      - epay-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - epay-net
+
+volumes:
+  epay-db-data:
+
+networks:
+  epay-net:
+    driver: bridge
