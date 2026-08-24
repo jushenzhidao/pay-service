@@ -1,0 +1,28 @@
+# Apache 伪静态规则，等价于 nginx.txt / IIS.txt 中的配置。
+# 依赖 mod_rewrite 与 AllowOverride All（docker/Dockerfile 已启用）。
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # /pay/xxx -> pay.php?s=xxx
+    RewriteRule ^pay/(.*)$ pay.php?s=$1 [L,QSA]
+
+    # /api/xxx -> api.php?s=xxx
+    RewriteRule ^api/(.*)$ api.php?s=$1 [L,QSA]
+
+    # 以下两条仅在目标不是真实文件/目录时才改写，
+    # 对应 nginx 的 if (!-e $request_filename)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^doc/([a-zA-Z0-9\-\_]+)\.html$ index.php?doc=$1 [L,QSA]
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^([a-zA-Z0-9\-\_]+)\.html$ index.php?mod=$1 [L,QSA]
+
+    # 目录保护：对应 nginx 的 location ^~ /plugins 与 /includes 的 deny all。
+    # 用 RewriteRule 而非 <LocationMatch> —— 后者是服务器/虚拟主机级指令，
+    # 放在 .htaccess 里会直接触发 "not allowed here" 并导致 500。
+    # 放在改写规则之后，避免影响上面的正常路由。
+    RewriteRule ^(plugins|includes)/ - [F,L]
+</IfModule>
