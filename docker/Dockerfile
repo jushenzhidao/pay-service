@@ -36,3 +36,10 @@ RUN { \
     } > /usr/local/etc/php/conf.d/epay.ini
 
 WORKDIR /var/www/html
+
+# 启动时修正 bind mount 权限，避免 Apache 因读不到 .htaccess 返回 403
+COPY entrypoint.sh /usr/local/bin/epay-entrypoint
+RUN chmod +x /usr/local/bin/epay-entrypoint
+
+ENTRYPOINT ["epay-entrypoint"]
+CMD ["apache2-foreground"]
