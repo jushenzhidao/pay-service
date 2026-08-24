@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*.*.*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,6 +12,11 @@ on:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  # 得到 jushenzhidao/pay-service，owner 段的大小写由 metadata-action 统一处理
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   php-lint:
@@ -98,42 +104,55 @@ jobs:
           [ "$missing" -eq 0 ] || exit 1
           echo "扩展检查通过"
 
-      # 以下步骤仅在 main 分支的 push 事件执行。
-      # PR 不推送：fork 发来的 PR 拿不到 packages:write，且不应让外部 PR 改动公开镜像。
+      # 以下步骤不在 PR 时执行：fork 发来的 PR 拿不到 packages:write，
+      # 且不应让外部 PR 改动公开镜像。
       - name: 登录 GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # metadata-action 自动处理 owner 小写、分支名、语义化版本、短 SHA，
+      # 并生成标准 OCI labels，无需手写拼接
+      - name: 生成镜像标签
+        id: meta
+        if: github.event_name != 'pull_request'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.description=易支付运行环境 (PHP 7.4 + Apache)，不含业务代码
+
       - name: 推送镜像到 GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: ./docker
           file: ./docker/Dockerfile
           push: true
-          # GHCR 要求 owner 段全小写；latest 便于拉取，sha 便于回滚定位
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/pay-service:latest
-            ghcr.io/${{ github.repository_owner }}/pay-service:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           # 复用上一步的构建缓存，不会重复编译 PHP 扩展
           cache-from: type=gha
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.description=易支付运行环境 (PHP 7.4 + Apache)，不含业务代码
 
       - name: 输出拉取方式
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         run: |
           {
             echo "### 镜像已推送"
             echo ""
             echo '```'
-            echo "docker pull ghcr.io/${{ github.repository_owner }}/pay-service:latest"
+            while IFS= read -r t; do
+              [ -n "$t" ] && echo "docker pull $t"
+            done <<< "${{ steps.meta.outputs.tags }}"
             echo '```'
             echo ""
             echo "首次推送后镜像包默认为 **private**，需在仓库 Packages 页手动改为 Public。"
