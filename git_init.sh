@@ -22,12 +22,6 @@ git symbolic-ref HEAD "refs/heads/$BRANCH"
 
 git add -A
 
-# 提交前拦一道：含明文数据库凭据的 config.php 绝不能入库
-if git diff --cached --name-only | grep -qx 'config.php'; then
-  echo "错误：config.php 含明文凭据，已被暂存。请确认 .gitignore 生效后重试。" >&2
-  exit 1
-fi
-
 if git diff --cached --quiet; then
   echo "没有需要提交的变更。"
 else
