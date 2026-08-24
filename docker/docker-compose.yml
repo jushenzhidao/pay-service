@@ -3,11 +3,10 @@ name: epay
 
 services:
   web:
-    image: docker.io/library/epay-web:ci
-#    build:
-#      # context 相对本文件所在目录（docker/）解析，故用 "."
-#      context: .
-#      dockerfile: Dockerfile
+    build:
+      # context 相对本文件所在目录（docker/）解析，故用 "."
+      context: .
+      dockerfile: Dockerfile
     container_name: epay-web
     ports:
       - "8090:80"
